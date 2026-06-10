@@ -19,5 +19,5 @@ export default async function AchievementsPage() {
     .single()
 
 
-  return <AchievementsClient achievements={achievements ?? []} hero={hero} />
+  return <AchievementsClient achievements={achievements ?? []} />
 }
