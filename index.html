@@ -22,6 +22,9 @@
             <div class="header-title">
                 <h1 class="gold-gradient-text">Mythic Quest</h1>
                 <span>El Sendero del Héroe</span>
+                <span id="current-argentina-date" style="font-size: 0.82rem; color: var(--gold); margin-top: 6px; text-transform: none; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-calendar-days"></i> Cargando fecha celestial...
+                </span>
             </div>
 
             <div class="hero-profile">
@@ -46,6 +49,9 @@
             </button>
             <button class="tab-btn" data-tab="tab-pantheon">
                 <i class="fa-solid fa-dungeon"></i> El Panteón
+            </button>
+            <button class="tab-btn" data-tab="tab-achievements">
+                <i class="fa-solid fa-trophy"></i> Hazañas
             </button>
         </nav>
 
@@ -103,6 +109,26 @@
                     
                     <div class="pantheon-grid" id="pantheon-grid">
                         <!-- Dynamic Pantheon cards will go here -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Tab 3: Achievements (Hazañas) -->
+            <div id="tab-achievements" class="tab-content">
+                <section class="achievements-panel" aria-labelledby="achievements-heading">
+                    <div class="achievements-intro text-center">
+                        <h2 id="achievements-heading" class="font-mythic gold-gradient-text">Hazañas Legendarias</h2>
+                        <p style="color: var(--text-secondary); margin-top: 8px; margin-bottom: 2rem; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+                            Registra tus hazañas sagradas y tu constancia diaria en el Sendero del Héroe para grabar tu nombre en los pilares del Olimpo.
+                        </p>
+                        <div class="streak-counter-banner" id="streak-banner">
+                            <i class="fa-solid fa-fire"></i>
+                            <span>Racha de Participación: <strong id="streak-days-count">1 día</strong></span>
+                        </div>
+                    </div>
+                    
+                    <div class="achievements-grid" id="achievements-grid">
+                        <!-- Dynamic Achievements will go here -->
                     </div>
                 </section>
             </div>
@@ -179,6 +205,16 @@
                         <option value="comun">Común (+10 XP) - Tareas diarias / Hábitos simples</option>
                         <option value="heroica">Heroica (+50 XP) - Esfuerzo considerable / Desafíos</option>
                         <option value="legendaria">Legendaria (+200 XP) - Hitos vitales / Grandes metas</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quest-frequency">Frecuencia / Repetición</label>
+                    <select id="quest-frequency" class="form-control" required>
+                        <option value="unica">De una vez (Misión única)</option>
+                        <option value="diaria">Diaria (Se renueva cada día)</option>
+                        <option value="semanal">Semanal (Se renueva cada semana)</option>
+                        <option value="mensual">Mensual (Se renueva cada mes)</option>
                     </select>
                 </div>
 

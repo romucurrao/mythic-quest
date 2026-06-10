@@ -1166,6 +1166,208 @@ select.form-control {
     color: rgba(255, 255, 255, 0.2);
 }
 
+/* Color Contrast Fix for Form Selectors (Options dropdowns) */
+select.form-control option {
+    background-color: #0b0e24 !important;
+    color: #f0f2f5 !important;
+    font-family: 'Montserrat', sans-serif;
+    padding: 12px;
+}
+
+/* Quest Item frequency badges */
+.quest-frequency-badge {
+    background: rgba(212, 175, 55, 0.05);
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    color: var(--text-gold);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+}
+
+/* Tab 3: Achievements styling */
+.achievements-panel {
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--border-radius);
+    padding: 2.5rem 2rem;
+    box-shadow: var(--shadow-main);
+}
+
+.streak-counter-banner {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(255, 87, 34, 0.15), rgba(212, 175, 55, 0.1));
+    border: 1px solid rgba(255, 87, 34, 0.3);
+    padding: 0.8rem 2rem;
+    border-radius: 30px;
+    margin-top: 0.5rem;
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+    box-shadow: 0 0 15px rgba(255, 87, 34, 0.15);
+}
+
+.streak-counter-banner i {
+    color: #ff5722;
+    font-size: 1.5rem;
+    margin-right: 10px;
+    animation: firePulse 1.5s infinite alternate;
+}
+
+@keyframes firePulse {
+    0% { transform: scale(1); filter: drop-shadow(0 0 2px #ff5722); }
+    100% { transform: scale(1.15); filter: drop-shadow(0 0 8px #ff784e); }
+}
+
+.streak-counter-banner strong {
+    color: #ffb830;
+    margin-left: 5px;
+    text-shadow: 0 0 5px rgba(255, 184, 48, 0.3);
+}
+
+.achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.achievement-card {
+    background: rgba(13, 19, 43, 0.4);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    position: relative;
+    overflow: hidden;
+    transition: var(--transition);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.achievement-card::before {
+    content: '';
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    border: 1px solid rgba(255,255,255,0.02);
+    pointer-events: none;
+    border-radius: calc(var(--border-radius) - 2px);
+    transition: var(--transition);
+}
+
+.achievement-card.unlocked {
+    border-color: rgba(212, 175, 55, 0.35);
+    background: radial-gradient(circle at left, rgba(212, 175, 55, 0.08) 0%, rgba(13, 19, 43, 0.6) 80%);
+}
+
+.achievement-card.unlocked:hover {
+    transform: translateY(-3px);
+    border-color: var(--gold);
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.15);
+}
+
+.achievement-card.unlocked:hover::before {
+    border-color: rgba(212, 175, 55, 0.15);
+}
+
+.achievement-card.locked {
+    opacity: 0.5;
+    background: rgba(10, 12, 22, 0.5);
+    border-color: rgba(255, 255, 255, 0.03);
+    filter: grayscale(70%);
+}
+
+/* Achievement Badge (Icon) */
+.achievement-badge {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.achievement-card.unlocked .achievement-badge {
+    background: rgba(212, 175, 55, 0.1);
+    border-color: var(--gold);
+    color: var(--gold-bright);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.25);
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
+.achievement-card.unlocked:hover .achievement-badge {
+    transform: scale(1.1) rotate(8deg);
+}
+
+.achievement-card.locked .achievement-badge {
+    opacity: 0.4;
+}
+
+/* Achievement Content */
+.achievement-info {
+    flex-grow: 1;
+}
+
+.achievement-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+    transition: var(--transition);
+}
+
+.achievement-card.unlocked .achievement-title {
+    color: var(--gold-bright);
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.15);
+}
+
+.achievement-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 5px;
+}
+
+.achievement-card.locked .achievement-desc {
+    color: rgba(160, 165, 192, 0.6);
+}
+
+.achievement-date {
+    font-size: 0.72rem;
+    color: var(--success);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.achievement-lock {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.achievement-card.unlocked .achievement-lock {
+    color: var(--gold);
+    opacity: 0.8;
+}
+
 /* CSS Utilities */
 .text-center { text-align: center; }
 .mt-4 { margin-top: 1rem; }

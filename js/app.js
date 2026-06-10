@@ -1,6 +1,6 @@
 /**
  * Mythic Quest - Core Application Logic
- * Manages state, local storage persistence, leveling system, and UI updates.
+ * Manages state, local storage persistence, leveling system, streaks, and UI updates.
  */
 
 // --- RPG Mechanics & State Configuration ---
@@ -8,7 +8,13 @@ const STORAGE_KEYS = {
     AREAS: 'mythic_quest_areas',
     QUESTS: 'mythic_quest_quests',
     XP: 'mythic_quest_xp',
-    LEVEL: 'mythic_quest_level'
+    LEVEL: 'mythic_quest_level',
+    ACHIEVEMENTS: 'mythic_quest_achievements',
+    STREAK: 'mythic_quest_streak',
+    LAST_ACTIVE: 'mythic_quest_last_active',
+    LAST_DATE: 'mythic_quest_last_date',
+    LAST_WEEK: 'mythic_quest_last_week',
+    LAST_MONTH: 'mythic_quest_last_month'
 };
 
 let state = {
@@ -16,6 +22,18 @@ let state = {
     quests: [],
     xp: 0,
     level: 1,
+    streak: 1,
+    achievements: {
+        first_area: { unlocked: false, date: null },
+        first_quest: { unlocked: false, date: null },
+        legendary_quest: { unlocked: false, date: null },
+        streak_3: { unlocked: false, date: null },
+        streak_7: { unlocked: false, date: null },
+        streak_30: { unlocked: false, date: null },
+        level_10: { unlocked: false, date: null },
+        level_20: { unlocked: false, date: null },
+        level_30: { unlocked: false, date: null }
+    },
     activeAreaFilter: null, // ID of currently focused area, or null for all
     activeStatusFilter: 'all' // 'all', 'active', 'completed'
 };
@@ -110,7 +128,7 @@ const MYTHIC_BEINGS = [
         level: 15, 
         name: "Cerbero de las Sombras", 
         emoji: "🐕", 
-        lore: "El sabueso de tres cabezas que vigila las puertas del Inframundo de Hades, asegurando que nadie escape. Representa el autocontrol absoluto y la vigilancia eterna sobre tu disciplina diario." 
+        lore: "El sabueso de tres cabezas que vigila las puertas del Inframundo de Hades, asegurando que nadie escape. Representa el autocontrol absoluto y la vigilancia eterna sobre tu disciplina diaria." 
     },
     { 
         level: 16, 
@@ -204,7 +222,67 @@ const MYTHIC_BEINGS = [
     }
 ];
 
-// --- Helper Functions for RPG mechanics ---
+// --- Custom Achievements Database ---
+const ACHIEVEMENTS_DB = {
+    first_area: { name: "Santuario Consagrado", desc: "Erige tu primer Santuario (Área de desarrollo).", icon: "fa-gavel" },
+    first_quest: { name: "Primer Paso", desc: "Completa tu primera misión en el tablón.", icon: "fa-shoe-prints" },
+    legendary_quest: { name: "Héroe de Leyenda", desc: "Completa tu primera misión de dificultad Legendaria.", icon: "fa-dragon" },
+    streak_3: { name: "Constancia de Bronce", desc: "Registra tu participación por 3 días seguidos.", icon: "fa-medal" },
+    streak_7: { name: "Constancia de Plata", desc: "Registra tu participación por 7 días seguidos (1 semana).", icon: "fa-award" },
+    streak_30: { name: "Constancia de Oro", desc: "Registra tu participación por 30 días seguidos (1 mes).", icon: "fa-trophy" },
+    level_10: { name: "Camino Divino", desc: "Alcanza el nivel 10 de divinidad.", icon: "fa-bolt" },
+    level_20: { name: "Ascensión Celestial", desc: "Alcanza el nivel 20 de divinidad.", icon: "fa-ankh" },
+    level_30: { name: "Monarca del Olimpo", desc: "Alcanza el nivel 30, el rango supremo de las constelaciones.", icon: "fa-crown" }
+};
+
+// --- Argentina Timezone Helper Functions ---
+function getArgentinaDate() {
+    return new Intl.DateTimeFormat('fr-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
+}
+
+function getArgentinaMonday() {
+    const date = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Monday is start of week
+    const monday = new Date(date.setDate(diff));
+    
+    const year = monday.getFullYear();
+    const month = String(monday.getMonth() + 1).padStart(2, '0');
+    const dayOfMonth = String(monday.getDate()).padStart(2, '0');
+    return `${year}-${month}-${dayOfMonth}`;
+}
+
+function getArgentinaMonth() {
+    return new Intl.DateTimeFormat('fr-CA', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric',
+        month: '2-digit'
+    }).format(new Date()); // Outputs YYYY-MM
+}
+
+function getArgentinaReadableDate() {
+    return new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }).format(new Date());
+}
+
+function getDaysDiff(dateStr1, dateStr2) {
+    const d1 = new Date(dateStr1 + 'T00:00:00');
+    const d2 = new Date(dateStr2 + 'T00:00:00');
+    const diffTime = Math.abs(d2 - d1);
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// --- RPG Mechanics Formulas ---
 // Level L requires: 50 * (L - 1) * L cumulative XP
 function getXpForLevel(lvl) {
     if (lvl <= 1) return 0;
@@ -228,16 +306,27 @@ function loadState() {
         const storedQuests = localStorage.getItem(STORAGE_KEYS.QUESTS);
         const storedXp = localStorage.getItem(STORAGE_KEYS.XP);
         const storedLevel = localStorage.getItem(STORAGE_KEYS.LEVEL);
+        const storedAchievements = localStorage.getItem(STORAGE_KEYS.ACHIEVEMENTS);
+        const storedStreak = localStorage.getItem(STORAGE_KEYS.STREAK);
 
         if (storedAreas && storedQuests) {
             state.areas = JSON.parse(storedAreas);
             state.quests = JSON.parse(storedQuests);
             state.xp = parseInt(storedXp) || 0;
             state.level = parseInt(storedLevel) || 1;
+            state.streak = parseInt(storedStreak) || 1;
+            
+            if (storedAchievements) {
+                state.achievements = JSON.parse(storedAchievements);
+            }
         } else {
             // Load Demo Data
             loadDemoData();
         }
+        
+        // Process Date-Based resets and Streaks
+        processTimeResetsAndStreaks();
+        
     } catch (e) {
         console.error("Error loading local storage state, using demo data:", e);
         loadDemoData();
@@ -250,6 +339,8 @@ function saveState() {
         localStorage.setItem(STORAGE_KEYS.QUESTS, JSON.stringify(state.quests));
         localStorage.setItem(STORAGE_KEYS.XP, state.xp.toString());
         localStorage.setItem(STORAGE_KEYS.LEVEL, state.level.toString());
+        localStorage.setItem(STORAGE_KEYS.ACHIEVEMENTS, JSON.stringify(state.achievements));
+        localStorage.setItem(STORAGE_KEYS.STREAK, state.streak.toString());
     } catch (e) {
         console.error("Failed to save state to localStorage:", e);
     }
@@ -263,17 +354,121 @@ function loadDemoData() {
     ];
 
     state.quests = [
-        { id: 'q-1', areaId: 'area-1', name: 'Leer 10 páginas de mitología clásica', difficulty: 'comun', completed: true },
-        { id: 'q-2', areaId: 'area-1', name: 'Completar 1 lección de desarrollo web', difficulty: 'heroica', completed: false },
-        { id: 'q-3', areaId: 'area-2', name: 'Hacer 30 flexiones de brazos', difficulty: 'comun', completed: false },
-        { id: 'q-4', areaId: 'area-3', name: 'Escribir un poema corto o tocar un instrumento por 15m', difficulty: 'comun', completed: false },
-        { id: 'q-5', areaId: 'area-3', name: 'Completar el lienzo principal de Mythic Quest', difficulty: 'legendaria', completed: false }
+        { id: 'q-1', areaId: 'area-1', name: 'Leer 10 páginas de mitología clásica', difficulty: 'comun', frequency: 'unica', completed: true },
+        { id: 'q-2', areaId: 'area-1', name: 'Completar 1 lección de desarrollo web', difficulty: 'heroica', frequency: 'diaria', completed: false },
+        { id: 'q-3', areaId: 'area-2', name: 'Hacer 30 flexiones de brazos', difficulty: 'comun', frequency: 'diaria', completed: false },
+        { id: 'q-4', areaId: 'area-3', name: 'Escribir un poema corto o tocar un instrumento por 15m', difficulty: 'comun', frequency: 'unica', completed: false },
+        { id: 'q-5', areaId: 'area-3', name: 'Completar el lienzo principal de Mythic Quest', difficulty: 'legendaria', frequency: 'mensual', completed: false }
     ];
 
     state.xp = 50; // Demo starting XP
     state.level = 1;
+    state.streak = 1;
+    
+    state.achievements = {
+        first_area: { unlocked: false, date: null },
+        first_quest: { unlocked: false, date: null },
+        legendary_quest: { unlocked: false, date: null },
+        streak_3: { unlocked: false, date: null },
+        streak_7: { unlocked: false, date: null },
+        streak_30: { unlocked: false, date: null },
+        level_10: { unlocked: false, date: null },
+        level_20: { unlocked: false, date: null },
+        level_30: { unlocked: false, date: null }
+    };
+    
     recalculateProgress();
     saveState();
+}
+
+function processTimeResetsAndStreaks() {
+    const currentArgentinaDate = getArgentinaDate();
+    const currentArgentinaWeek = getArgentinaMonday();
+    const currentArgentinaMonth = getArgentinaMonth();
+    
+    const lastDate = localStorage.getItem(STORAGE_KEYS.LAST_DATE);
+    const lastWeek = localStorage.getItem(STORAGE_KEYS.LAST_WEEK);
+    const lastMonth = localStorage.getItem(STORAGE_KEYS.LAST_MONTH);
+    const lastActive = localStorage.getItem(STORAGE_KEYS.LAST_ACTIVE);
+    
+    // 1. Check Quest Resets
+    if (lastDate) {
+        let resetOccurred = false;
+        
+        // Daily reset
+        if (lastDate !== currentArgentinaDate) {
+            state.quests.forEach(q => {
+                if (q.frequency === 'diaria' && q.completed) {
+                    q.completed = false;
+                    resetOccurred = true;
+                }
+            });
+        }
+        
+        // Weekly reset
+        if (lastWeek !== currentArgentinaWeek) {
+            state.quests.forEach(q => {
+                if (q.frequency === 'semanal' && q.completed) {
+                    q.completed = false;
+                    resetOccurred = true;
+                }
+            });
+        }
+        
+        // Monthly reset
+        if (lastMonth !== currentArgentinaMonth) {
+            state.quests.forEach(q => {
+                if (q.frequency === 'mensual' && q.completed) {
+                    q.completed = false;
+                    resetOccurred = true;
+                }
+            });
+        }
+        
+        if (resetOccurred) {
+            recalculateProgress();
+            saveState();
+            setTimeout(() => {
+                showBlessingToast("Renovación de Misiones", "Tus misiones repetibles se han reactivado para un nuevo período celestial.", "fa-rotate");
+            }, 1000);
+        }
+    }
+    
+    // Save current dates for next reset check
+    localStorage.setItem(STORAGE_KEYS.LAST_DATE, currentArgentinaDate);
+    localStorage.setItem(STORAGE_KEYS.LAST_WEEK, currentArgentinaWeek);
+    localStorage.setItem(STORAGE_KEYS.LAST_MONTH, currentArgentinaMonth);
+    
+    // 2. Check Login Streak
+    if (!lastActive) {
+        state.streak = 1;
+        localStorage.setItem(STORAGE_KEYS.LAST_ACTIVE, currentArgentinaDate);
+        localStorage.setItem(STORAGE_KEYS.STREAK, state.streak.toString());
+    } else {
+        if (lastActive !== currentArgentinaDate) {
+            const diff = getDaysDiff(lastActive, currentArgentinaDate);
+            if (diff === 1) {
+                // Consecutive active day
+                state.streak += 1;
+                localStorage.setItem(STORAGE_KEYS.LAST_ACTIVE, currentArgentinaDate);
+                localStorage.setItem(STORAGE_KEYS.STREAK, state.streak.toString());
+                setTimeout(() => {
+                    showBlessingToast("Racha del Héroe", `¡Llevas ${state.streak} días seguidos recorriendo tu sendero!`, "fa-fire");
+                }, 1800);
+            } else if (diff > 1) {
+                // Streak broken
+                state.streak = 1;
+                localStorage.setItem(STORAGE_KEYS.LAST_ACTIVE, currentArgentinaDate);
+                localStorage.setItem(STORAGE_KEYS.STREAK, state.streak.toString());
+                setTimeout(() => {
+                    showBlessingToast("Racha Reiniciada", "Tu racha se enfrió por inactividad. ¡Vuelve a encenderla hoy!", "fa-clock");
+                }, 1800);
+            }
+        }
+    }
+    
+    // Achievements check on startup (for streaks and levels)
+    checkAchievements();
 }
 
 // Recalculates area completion percentages based on current quests
@@ -304,6 +499,7 @@ function addXP(amount, eventX = null, eventY = null) {
     if (newLvl > currentLvl) {
         state.level = newLvl;
         triggerLevelUpOverlay(newLvl);
+        checkAchievements();
     } else {
         // Normal quest complete toast and particle burst
         showBlessingToast(`¡Bendición de los Dioses!`, `Has ganado +${amount} XP completando una misión.`);
@@ -314,6 +510,68 @@ function addXP(amount, eventX = null, eventY = null) {
     
     saveState();
     updateUI();
+}
+
+// --- Achievements Unlock Logic ---
+function checkAchievements() {
+    let changed = false;
+    
+    // 1. First area check
+    if (!state.achievements.first_area.unlocked && state.areas.length > 0) {
+        unlockAchievement('first_area');
+        changed = true;
+    }
+    // 2. Level checks
+    if (!state.achievements.level_10.unlocked && state.level >= 10) {
+        unlockAchievement('level_10');
+        changed = true;
+    }
+    if (!state.achievements.level_20.unlocked && state.level >= 20) {
+        unlockAchievement('level_20');
+        changed = true;
+    }
+    if (!state.achievements.level_30.unlocked && state.level >= 30) {
+        unlockAchievement('level_30');
+        changed = true;
+    }
+    // 3. Streak checks
+    if (!state.achievements.streak_3.unlocked && state.streak >= 3) {
+        unlockAchievement('streak_3');
+        changed = true;
+    }
+    if (!state.achievements.streak_7.unlocked && state.streak >= 7) {
+        unlockAchievement('streak_7');
+        changed = true;
+    }
+    if (!state.achievements.streak_30.unlocked && state.streak >= 30) {
+        unlockAchievement('streak_30');
+        changed = true;
+    }
+    
+    if (changed) {
+        saveState();
+    }
+}
+
+function unlockAchievement(id) {
+    if (state.achievements[id] && !state.achievements[id].unlocked) {
+        state.achievements[id].unlocked = true;
+        
+        const now = new Date();
+        const options = {
+            timeZone: "America/Argentina/Buenos_Aires",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false
+        };
+        const argentinaTime = now.toLocaleString("es-AR", options);
+        state.achievements[id].date = argentinaTime;
+        
+        showBlessingToast("¡Hazaña Desbloqueada!", `Has completado: "${ACHIEVEMENTS_DB[id].name}"`, "fa-trophy");
+    }
 }
 
 // --- Modal Control Functions ---
@@ -394,6 +652,15 @@ function updateUI() {
     renderQuests();
     populateAreaSelect();
     renderPantheon();
+    renderAchievements();
+    renderArgentinaDateHeader();
+}
+
+function renderArgentinaDateHeader() {
+    const el = document.getElementById('current-argentina-date');
+    if (el) {
+        el.innerHTML = `<i class="fa-solid fa-calendar-days"></i> Fecha Celestial: ${getArgentinaReadableDate()}`;
+    }
 }
 
 function renderHeroProfile() {
@@ -558,6 +825,16 @@ function renderQuests() {
             xpGained = 200;
         }
         
+        let frequencyLabel = "";
+        const freq = quest.frequency || 'unica';
+        if (freq === 'diaria') {
+            frequencyLabel = `<span class="quest-frequency-badge"><i class="fa-solid fa-rotate"></i> Diaria</span>`;
+        } else if (freq === 'semanal') {
+            frequencyLabel = `<span class="quest-frequency-badge"><i class="fa-solid fa-calendar-days"></i> Semanal</span>`;
+        } else if (freq === 'mensual') {
+            frequencyLabel = `<span class="quest-frequency-badge"><i class="fa-solid fa-calendar-minus"></i> Mensual</span>`;
+        }
+        
         const item = document.createElement('div');
         item.className = `quest-item ${quest.completed ? 'completed' : ''}`;
         
@@ -576,6 +853,7 @@ function renderQuests() {
                     <span class="quest-difficulty rarity-${quest.difficulty}">
                         <i class="fa-solid fa-crown"></i> ${difficultyLabel}
                     </span>
+                    ${frequencyLabel}
                     <span class="quest-rewards">
                         <i class="fa-solid fa-star"></i> +${xpGained} XP
                     </span>
@@ -623,6 +901,50 @@ function renderPantheon() {
                 <div class="pantheon-card-name">Bloqueado</div>
                 <div class="pantheon-card-lore" style="text-align: center; border-top: none; padding-top: 0.2rem;">
                     Alcanza el nivel ${being.level} de divinidad para encarnar a este ser y conocer su historia.
+                </div>
+            `;
+        }
+        grid.appendChild(card);
+    });
+}
+
+function renderAchievements() {
+    const grid = document.getElementById('achievements-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    const streakDaysLabel = document.getElementById('streak-days-count');
+    if (streakDaysLabel) {
+        streakDaysLabel.innerText = `${state.streak} ${state.streak === 1 ? 'día' : 'días'}`;
+    }
+    
+    Object.keys(ACHIEVEMENTS_DB).forEach(key => {
+        const info = ACHIEVEMENTS_DB[key];
+        const status = state.achievements[key] || { unlocked: false, date: null };
+        const card = document.createElement('div');
+        
+        if (status.unlocked) {
+            card.className = "achievement-card unlocked";
+            card.innerHTML = `
+                <div class="achievement-lock"><i class="fa-solid fa-lock-open"></i></div>
+                <div class="achievement-badge"><i class="fa-solid ${info.icon}"></i></div>
+                <div class="achievement-info">
+                    <div class="achievement-title">${escapeHTML(info.name)}</div>
+                    <div class="achievement-desc">${escapeHTML(info.desc)}</div>
+                    <div class="achievement-date">
+                        <i class="fa-solid fa-circle-check"></i> Completado el ${status.date}
+                    </div>
+                </div>
+            `;
+        } else {
+            card.className = "achievement-card locked";
+            card.innerHTML = `
+                <div class="achievement-lock"><i class="fa-solid fa-lock"></i></div>
+                <div class="achievement-badge"><i class="fa-solid ${info.icon}"></i></div>
+                <div class="achievement-info">
+                    <div class="achievement-title">Bloqueado</div>
+                    <div class="achievement-desc">${escapeHTML(info.desc)}</div>
                 </div>
             `;
         }
@@ -683,6 +1005,9 @@ function handleAreaSubmit(e) {
         };
         state.areas.push(newArea);
         showBlessingToast("Santuario Consagrado", `Has erigido el santuario de ${name} en honor a ${deity}.`, 'fa-gavel');
+        
+        // Instant check for first area achievement
+        checkAchievements();
     }
     
     saveState();
@@ -744,8 +1069,9 @@ function handleQuestSubmit(e) {
     const name = document.getElementById('quest-name').value.trim();
     const areaId = document.getElementById('quest-area').value;
     const difficulty = document.getElementById('quest-difficulty').value;
+    const frequency = document.getElementById('quest-frequency').value;
     
-    if (!name || !areaId || !difficulty) return;
+    if (!name || !areaId || !difficulty || !frequency) return;
     
     if (id) {
         // Edit Mode
@@ -754,6 +1080,7 @@ function handleQuestSubmit(e) {
             quest.name = name;
             quest.areaId = areaId;
             quest.difficulty = difficulty;
+            quest.frequency = frequency;
             showBlessingToast("Misión Reformulada", `La misión ha sido modificada.`);
         }
     } else {
@@ -763,6 +1090,7 @@ function handleQuestSubmit(e) {
             areaId,
             name,
             difficulty,
+            frequency,
             completed: false
         };
         state.quests.push(newQuest);
@@ -788,6 +1116,14 @@ window.toggleQuest = function(id, event) {
     recalculateProgress();
     
     if (quest.completed) {
+        // Unlock quest achievements
+        if (!state.achievements.first_quest.unlocked) {
+            unlockAchievement('first_quest');
+        }
+        if (quest.difficulty === 'legendaria' && !state.achievements.legendary_quest.unlocked) {
+            unlockAchievement('legendary_quest');
+        }
+        
         // Add XP
         addXP(xpAmount, event.clientX, event.clientY);
     } else {
@@ -815,6 +1151,7 @@ window.editQuest = function(id) {
     document.getElementById('quest-name').value = quest.name;
     document.getElementById('quest-area').value = quest.areaId;
     document.getElementById('quest-difficulty').value = quest.difficulty;
+    document.getElementById('quest-frequency').value = quest.frequency || 'unica';
     
     document.getElementById('quest-modal-title').innerText = "Reformular Misión";
     document.getElementById('quest-submit-btn').innerText = "Reformar Misión";
@@ -839,7 +1176,7 @@ window.deleteQuest = function(id) {
 
 // --- DOM Event Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Load local state
+    // Load local state and check date resets/streaks
     loadState();
     updateUI();
     
@@ -929,9 +1266,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetTab.classList.add('active');
             }
 
-            // Render Pantheon if active
+            // Render based on active tab
             if (tabId === 'tab-pantheon') {
                 renderPantheon();
+            } else if (tabId === 'tab-achievements') {
+                renderAchievements();
             }
         });
     });
